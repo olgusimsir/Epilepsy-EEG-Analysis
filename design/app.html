@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NeuroScan — EEG Epilepsy Analysis</title>
+<link rel="icon" type="image/png" href="/epilogo.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/neuroscan.css" />
+</head>
+<body>
+<div class="app">
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <img class="logo" src="/epilogo.png" alt="Epilogo" />
+      <div><h1>NeuroScan</h1><p>EEG Epilepsy Analysis</p></div>
+    </div>
+
+    <div class="section">
+      <div class="sec-head"><h2>Recording</h2></div>
+      <div class="field" id="uploadField">
+        <div class="flabel">Patient EEG file (EDF)</div>
+        <label class="filepick" id="fileLabel">
+          <input type="file" id="uploadInput" accept=".edf" aria-label="Upload patient EEG recording (EDF file)" hidden />
+          <span class="filepick-ic" id="fileIcon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+          <span class="filepick-text" id="fileText">Choose an EDF file…</span>
+        </label>
+      </div>
+      <div class="field">
+        <div class="slider-row"><span class="flabel">Detection sensitivity</span><span class="val" id="thVal">0.50</span></div>
+        <input type="range" id="threshold" min="0" max="1" step="0.05" value="0.5" aria-label="Detection sensitivity threshold" />
+        <p class="caption">Lower catches more subtle events; higher reduces false alarms.</p>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+    <button class="btn" id="analyzeBtn" style="width:100%">Analyze recording</button>
+    <div class="foot">Decision-support for a neurologist — not a medical device. The analysis runs fully on this machine; no patient data leaves it.</div>
+  </aside>
+
+  <!-- ================= MAIN ================= -->
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <h1>EEG Epilepsy Analysis &amp; Risk Assessment</h1>
+        <p>Detect seizure activity in scalp EEG, assess epilepsy risk, and generate a clinical report with a fully-local LLM.</p>
+      </div>
+      <div class="pill"><span class="dot" style="background:var(--moderate)"></span>Decision-support · not a medical device</div>
+    </div>
+
+    <!-- Empty state -->
+    <div id="emptyState" class="empty">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg></div>
+      <h2>Upload a recording to begin</h2>
+      <p>Upload the patient's EDF recording in the sidebar, then press <strong>Analyze recording</strong>. The model windows the signal, scores each 5-second window, and assesses recording-level epilepsy risk.</p>
+    </div>
+
+    <!-- Loading skeleton -->
+    <div id="loadingState" class="hidden" style="display:flex;flex-direction:column;gap:24px">
+      <div class="skeleton" style="height:112px"></div>
+      <div class="metrics">
+        <div class="skeleton" style="height:132px"></div><div class="skeleton" style="height:132px"></div>
+        <div class="skeleton" style="height:132px"></div><div class="skeleton" style="height:132px"></div>
+      </div>
+      <div class="skeleton" style="height:300px"></div>
+      <p style="text-align:center;color:var(--text-muted);font-size:13px"><span class="spin" style="border-color:rgba(148,163,184,.35);border-top-color:var(--accent);vertical-align:middle"></span>&nbsp; Analyzing recording… (first run loads the model)</p>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="hidden" style="display:flex;flex-direction:column;gap:24px">
+      <div class="hero" id="hero">
+        <div class="lead">
+          <div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+          <div>
+            <div class="badge" id="heroBadge"><span class="dot"></span><span id="heroBadgeText"></span></div>
+            <h2 id="heroTitle"></h2>
+            <div class="sub" id="heroSub"></div>
+          </div>
+        </div>
+        <div class="score"><div class="num" id="heroScore"></div><div class="den">risk score / 100</div></div>
+      </div>
+
+      <div class="metrics" id="metrics"></div>
+
+      <div class="card panel">
+        <h3><span class="dot" style="background:var(--high)"></span>Detected episodes</h3>
+        <div id="episodes"></div>
+      </div>
+
+      <div class="card panel">
+        <div class="chart-head">
+          <h3>Per-window seizure probability</h3>
+          <div class="legend">
+            <span><span class="lg-line"></span>P(seizure)</span>
+            <span><span class="lg-dash"></span>Threshold <span id="thLegend">0.50</span></span>
+            <span><span class="lg-red"></span>Detected</span>
+          </div>
+        </div>
+        <div id="chart"></div>
+        <div class="axis mono" id="axis"></div>
+      </div>
+
+      <div class="card panel">
+        <div class="report-head">
+          <div>
+            <h3>Clinical EEG report</h3>
+            <p id="reportCaption"></p>
+          </div>
+          <div class="report-actions">
+            <button class="btn ghost" id="printBtn" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M6 14h12v8H6z"/></svg>Export PDF</button>
+            <button class="btn" id="reportBtn"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>Generate report</button>
+          </div>
+        </div>
+        <div class="report-body hidden" id="reportBody"></div>
+      </div>
+
+      <div class="disclaimer">Decision-support for a qualified neurologist — not a medical device and not a diagnosis. The neurologist confirms every finding and makes the clinical decision. Analysis runs locally; no patient data leaves this machine.</div>
+    </div>
+  </main>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

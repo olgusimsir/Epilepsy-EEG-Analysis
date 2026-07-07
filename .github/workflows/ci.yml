@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The risk-assessment tests only need numpy (no torch / mne), so CI is fast.
+      - name: Install test deps
+        run: pip install numpy pytest
+      - name: Run tests
+        run: pytest tests/ -q
