@@ -124,14 +124,18 @@ function renderResults(d, threshold) {
   $('heroSub').textContent = `${a.n_episodes} episode${a.n_episodes === 1 ? '' : 's'} · ${d.filename}`;
   $('heroScore').textContent = a.risk_score;
 
+  // circular risk gauge: arc length = score/100
+  const gC = 2 * Math.PI * 52, arc = $('gaugeArc');
+  if (arc) { arc.style.strokeDasharray = gC.toFixed(1); arc.style.strokeDashoffset = (gC * (1 - Math.max(0, Math.min(100, a.risk_score)) / 100)).toFixed(1); }
+
   const ICONS = {
     score: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
     windows: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/>',
     episodes: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     peak: '<path d="M12 2 15 8l6 .5-4.5 4 1.5 6L12 15l-6 3.5 1.5-6L3 8.5 9 8z"/>',
   };
-  const metric = (label, value, small, foot, icon) => `
-    <div class="card metric">
+  const metric = (label, value, small, foot, icon, cls) => `
+    <div class="card metric ${cls}">
       <div class="top"><div class="label">${label}</div>
         <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg></div></div>
       <div class="value">${value}${small ? `<small>${small}</small>` : ''}</div>
@@ -139,10 +143,10 @@ function renderResults(d, threshold) {
     </div>`;
   const pc = Number(a.peak_confidence).toFixed(2);
   $('metrics').innerHTML =
-    metric('RISK SCORE', a.risk_score, '/100', `Peak confidence ${pc}`, ICONS.score) +
-    metric('ABNORMAL WINDOWS', a.n_abnormal_windows, '/' + a.n_windows, `${a.pct_abnormal}% of recording`, ICONS.windows) +
-    metric('EPISODES', a.n_episodes, '', `${a.abnormal_seconds}s total abnormal`, ICONS.episodes) +
-    metric('PEAK CONFIDENCE', pc, '', 'Max P(seizure) in recording', ICONS.peak);
+    metric('RISK SCORE', a.risk_score, '/100', `Peak confidence ${pc}`, ICONS.score, 'm1') +
+    metric('ABNORMAL WINDOWS', a.n_abnormal_windows, '/' + a.n_windows, `${a.pct_abnormal}% of recording`, ICONS.windows, 'm2') +
+    metric('EPISODES', a.n_episodes, '', `${a.abnormal_seconds}s total abnormal`, ICONS.episodes, 'm3') +
+    metric('PEAK CONFIDENCE', pc, '', 'Max P(seizure) in recording', ICONS.peak, 'm4');
 
   // episodes
   const eps = a.episodes || [];
@@ -182,7 +186,10 @@ function renderChart(d, threshold) {
 
   const det = spans.map(([a, b]) => {
     const x1 = x(a), x2 = x(Math.min(b, n - 1));
-    return `<rect x="${x1.toFixed(1)}" y="0" width="${Math.max(2, x2 - x1).toFixed(1)}" height="${H}" fill="#f87171" fill-opacity=".14"/>`;
+    let mp = 0; for (let i = a; i < b; i++) if (probs[i] > mp) mp = probs[i];   // peak in this span
+    const inten = Math.max(0, Math.min(1, (mp - threshold) / (1 - threshold + 1e-6)));
+    const op = (0.14 + 0.44 * inten).toFixed(3);                                 // redder the further above threshold
+    return `<rect x="${x1.toFixed(1)}" y="0" width="${Math.max(2, x2 - x1).toFixed(1)}" height="${H}" fill="#ff2f2f" fill-opacity="${op}"/>`;
   }).join('');
   const thY = y(threshold);
 
@@ -262,7 +269,9 @@ function formatReport(md) {
   const highlight = t => t
     .replace(/\b(High|Moderate|Low)\b(?=\s*\(?\s*(?:score|\d))/g, '<span class="hl">$1</span>')
     .replace(/\d+(?:\.\d+)?[%s]?/g, m => `<span class="hl">${m}</span>`);
-  const inline = s => highlight(esc(s)).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`(.+?)`/g, '<code>$1</code>');
+  // auto-bold key clinical words (on top of any **bold** from the source)
+  const bold = t => t.replace(/\b(seizure-like activity|seizures?|epileptiform|epilepsy|abnormal|normal|recommendations?|recommend(?:ed|s)?)\b/gi, '<strong>$1</strong>');
+  const inline = s => bold(highlight(esc(s))).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`(.+?)`/g, '<code>$1</code>');
   let html = '', inList = false, openSec = false;
   const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
   for (let raw of md.split('\n')) {

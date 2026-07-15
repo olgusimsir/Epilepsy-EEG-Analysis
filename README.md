@@ -1,138 +1,124 @@
-# NeuroScan — AI-Powered EEG Analysis & Epilepsy Risk Assessment
+# NeuroScan — EEG Epilepsy Seizure Detection & Risk Assessment
 
-## Project Video
+An end-to-end, **fully-local** decision-support tool for scalp EEG. It detects
+seizure activity with a convolutional neural network, turns per-window predictions
+into a recording-level epilepsy-risk assessment, and drafts a clinical report with a
+local language model — all on your own machine, with no patient data leaving it.
 
-Watch the project video [here](https://drive.google.com/file/d/1HfcdeVhxI6KtM6jSEWdZPCVmv_zjM3WJ/view?usp=sharing).
+📹 **Demo video:** https://drive.google.com/file/d/1HfcdeVhxI6KtM6jSEWdZPCVmv_zjM3WJ/view?usp=sharing
 
-An end-to-end, **offline-capable** clinical-support tool that reads a scalp EEG (EDF),
-detects seizure-like activity with a 1D CNN, produces a **recording-level epilepsy risk
-score**, and generates an **expert-style clinical report** with a **local LLM** (Azure AI
-Foundry Local), optionally grounded by a **local RAG** knowledge base.
-
-Built on the [CHB-MIT Scalp EEG Database](https://physionet.org/content/chbmit/).
-**Decision-support for a neurologist — not a medical device, and not a diagnosis.**
-
-```
-EEG (EDF) ─▶ window ─▶ 1D CNN ─▶ per-window seizure probability
-                                        │
-                                        ▼
-                          episode post-processing ─▶ risk score (0–100 + level)
-                                        │
-                          RAG (local docs) ─┐      │
-                                            ▼      ▼
-                             local LLM (Foundry Local) ─▶ clinical report
-```
-
-With the local provider, **no patient data leaves the machine**.
-
-![NeuroScan web UI — upload a patient EEG, get an epilepsy-risk score, a probability timeline, and a local-LLM clinical report](design/FigmaDesign.png)
+> **Not a medical device.** This is a research / decision-support prototype, not a
+> diagnostic tool. Every finding requires review by a qualified neurologist.
 
 ---
 
-## The product: a focused clinical web tool
+## What it does
 
-The web UI (`serve_ui.py`, `http://localhost:8000`) is built for **one user: the
-neurologist**. Every control is a clinical decision; all infrastructure choices are
-fixed to safe defaults and hidden.
+Upload a scalp-EEG recording (`.edf`) → the tool:
 
-- **Upload → Analyze → Report.** Upload the patient's EDF, optionally adjust detection
-  sensitivity, and analyze. One click generates an editable clinical report.
-- **What you see** — a colour-coded epilepsy-risk score (0–100), summary metrics, the
-  detected seizure episodes with timing, a per-window seizure-probability timeline (hover
-  for the value at any second; the sensitivity slider re-thresholds the chart live), and
-  a structured report with **Export PDF**.
-- **Privacy by default** — the CNN and the report LLM run locally; nothing is sent
-  off-device. The report's numbers come from the model, not the LLM — the LLM only
-  narrates them, so it can't invent a figure.
-- **Decision-support, not a diagnosis** — the tool does the slow first pass; the
-  neurologist confirms every finding and makes the call.
+1. **Detects seizures** — a 1-D CNN scores every 5-second window for seizure activity.
+2. **Assesses risk** — smooths the window scores, groups them into episodes, and
+   produces a 0–100 risk score with a High / Moderate / Low level.
+3. **Writes a report** — a local LLM drafts a clinical narrative from the analysis,
+   grounded in reference literature (RAG). Falls back to a deterministic template if
+   no LLM is configured.
 
-A Streamlit app (`streamlit run app.py`) is kept as a parallel developer/experiment
-frontend over the identical pipeline.
+Served as a web app (`serve_ui.py`) at `http://localhost:8000`.
 
----
+## The two "AIs" in this project
 
-## How it works
-
-**1. Signal → windows.** The EDF is read with MNE, split into 5-second windows (256 Hz →
-1280 samples), reduced to the model's 23-channel montage, and normalized with the stats
-stored in the checkpoint (so preprocessing is reproduced exactly at inference).
-
-**2. Detection (1D CNN, PyTorch).** `SeizureCNN2` scores each window's seizure
-probability. It is regularized for cross-patient generalization: BatchNorm after each
-conv, global average pooling instead of a large fully-connected head, and dropout.
-Inference uses **50% overlapping windows** (averaged back onto the base grid) so seizures
-that straddle a window boundary aren't missed. Probabilities are optionally
-**temperature-calibrated** (`models/calibration.json`, fit by `scripts/calibrate.py`).
-
-**3. Risk assessment (rule-based, explainable).** Per-window probabilities are smoothed,
-consecutive detections are merged across brief sub-threshold dips, and episodes shorter
-than a minimum duration are dropped — so a fragmented seizure reads as one clinical
-event. The 0–100 score is a transparent blend of peak confidence, episode count, and
-burden (`src/risk_assessment.py`). No LLM is involved here — the numbers are auditable.
-
-**4. Report (RAG + local LLM).** A query built from the structured findings retrieves the
-most relevant passages from `data/knowledge/` (TF-IDF + cosine similarity, fully offline),
-which ground a report written by a local model (Microsoft Phi-3.5 via Foundry Local) in
-three sections: Findings, Risk Assessment, Recommendation.
+| Component | Role | Where |
+|---|---|---|
+| **`SeizureCNN2`** (the core AI) | Reads raw EEG → seizure probability per window. This is the trained deep-learning model doing the detection. | `src/model.py`, `src/train_final.py`, `src/predict.py` |
+| **Local LLM** (secondary) | Writes the report *prose* from the CNN's findings. It never sees raw EEG. | `src/clinical_report.py`, `src/llm/` |
 
 ---
 
 ## Results
 
-**Single-subject (chb01), held-out window split** — optimistic (patient seen in training):
+### In-dataset (CHB-MIT)
+Trained on **all 24 CHB-MIT patients**. The deployed model `seizure_cnn2_final.pt`
+reaches **val F1 ≈ 0.72**; the per-window-normalized variant `seizure_cnn2_zscore.pt`
+reaches **val F1 ≈ 0.79**. On held-out CHB-MIT seizure files it reliably localizes the
+true seizure (e.g. `chb01_03`: detected 3000–3030 s vs. ground-truth 2996–3036 s).
 
-| Metric | Value |
-|--------|-------|
-| F1 | ~0.88–0.94 |
-| Recall | ~79–90% |
-| Precision | 100% |
+### Cross-dataset generalization study (the honest part)
+Trained on CHB-MIT, tested **zero-shot on the Siena Scalp EEG database** — different
+patients *and* different hardware/montage (referential vs. bipolar, 512 vs. 256 Hz),
+harmonized onto the model's montage (`src/siena.py`). 8 Siena subjects, ~22k windows:
 
-**Cross-subject (leave-one-subject-out over 7 patients: chb01,02,03,05,06,07,08)** —
-the honest test, each patient held out entirely during training:
+| Setup | AUC | Seizure sensitivity (event-level) | False alarms / hr |
+|---|---|---|---|
+| Global-scalar normalization | 0.68 | 44 % (8/18) | 13.4 |
+| **Per-window normalization** | **0.76** | **67 % (12/18)** | 36.8 |
+| Per-window + live pipeline (smoothing + min-episode) | 0.76 | 56 % (10/18) | **7.6** |
 
-| Config | F1 (pooled) | Recall | mean-fold F1 |
-|--------|-------------|--------|--------------|
-| `SeizureCNN` (baseline) | 0.388 | 0.57 | 0.373 |
-| `SeizureCNN2` (BatchNorm + global pool + dropout) | **0.399** | **0.63** | **0.440** |
+Key findings — all measured, not assumed:
+- **Per-window z-score normalization** substantially improves cross-dataset transfer
+  (AUC 0.68 → 0.76, sensitivity 44 % → 67 %).
+- The **live post-processing pipeline** (smoothing + minimum-episode duration) cuts
+  false alarms ~5× (37 → 7.6/hr) for a modest sensitivity cost.
+- A threshold sweep reveals a usable operating point: at threshold 0.9, **0.8 false
+  alarms/hr at 44 % sensitivity** — within the clinical <1–2/hr bar.
+- **Fine-tuning** on a few Siena subjects did *not* help (a reported negative result):
+  too little data → overfitting, more false alarms.
 
-> **Findings:** (1) the **regularized architecture generalizes better**; (2) **more
-> patients did not raise the headline F1** — cross-subject seizure detection is genuinely
-> hard; (3) the dominant effect is **per-patient variance** (the same model scores
-> F1 ~0.81 on chb01 but ~0.02 on chb06), which is exactly why real clinical systems use
-> **patient-adaptive calibration**. A 2×2 ablation also showed per-*window* channel
-> z-scoring **hurts** — a tested negative result, not an assumption.
+**Bottom line:** the model carries real, transferable signal, but like all research
+seizure detectors it is **not clinically deployable** on unseen data. The value here
+is a rigorous, honest cross-dataset evaluation — not an inflated accuracy number.
+
+---
+
+## How the pipeline works
+
+```
+ .edf  ─►  window (5 s, 23 bipolar ch, 256 Hz)  ─►  SeizureCNN2  ─►  P(seizure) per window
+                                                                           │
+                                       smooth (k=3) → threshold → merge/min-episode
+                                                                           │
+                                        risk score (0–100) + level + episodes
+                                                                           │
+                                          local LLM (+ RAG)  ─►  clinical report
+```
+
+- **Model** (`SeizureCNN2`): Conv1d → BatchNorm → ReLU → MaxPool (×2), a third conv,
+  global average pooling, dropout, linear classifier. Built to generalize across
+  patients (BatchNorm + GAP + dropout rather than a huge flatten layer).
+- **Montage-agnostic input**: accepts CHB-MIT bipolar EDFs directly, and derives the
+  bipolar montage from referential electrodes (Siena-style) on the fly, resampling to
+  256 Hz (`src/predict._montage_data`).
+- **Risk assessment** (`src/risk_assessment.py`): moving-average smoothing, episode
+  merging (gaps ≤ 10 s) and a 10-second minimum episode length remove single-window
+  false spikes.
 
 ---
 
 ## Project layout
 
 ```
-eeg-epilepsy-project/
-├── serve_ui.py                 # clinical web UI server (stdlib only) → localhost:8000
-├── app.py                      # Streamlit frontend (parallel, same pipeline)
-├── design/                     # frontend (HTML/CSS/JS) + logo + screenshot
-│   ├── app.html · app.js · neuroscan.css
-│   ├── epilogo.png · FigmaDesign.png
-├── data/
-│   ├── raw/chbNN/              # EDF recordings + summaries (not in git — download)
-│   └── knowledge/              # local RAG corpus (EEG/epilepsy reference docs)
-├── models/                     # checkpoints + calibration.json (not in git)
-├── scripts/
-│   ├── download_foundry_model.py   # download + warm up a local LLM
-│   └── calibrate.py                # fit temperature scaling for the CNN
-├── src/
-│   ├── parse_summary.py · windowing.py · build_dataset.py · cross_subject.py
-│   ├── model.py                # SeizureCNN + SeizureCNN2 (regularized)
-│   ├── train.py · train_cross_subject.py · train_final.py
-│   ├── predict.py              # inference (overlap + calibration)
-│   ├── risk_assessment.py      # per-window probs → risk (smooth/merge/score)
-│   ├── clinical_report.py      # report entry point (provider + RAG orchestration)
-│   ├── llm/                    # swappable LLM providers (foundry_local / anthropic / template)
-│   └── rag/                    # local retrieval (TF-IDF documents/index/retriever)
-├── tests/                      # unit tests (risk assessment)
-├── .github/workflows/ci.yml    # CI: run tests on push/PR
-├── requirements.txt · README.md
+serve_ui.py             Web app (stdlib HTTP server) → http://localhost:8000
+design/                 Frontend (vanilla HTML/CSS/JS + a decorative Three.js brain)
+src/
+  model.py              SeizureCNN / SeizureCNN2 architectures
+  predict.py            Inference: montage handling, normalization, windowing, scoring
+  risk_assessment.py    Per-window probs → episodes → 0–100 risk score
+  train_final.py        Train the deployable model (--norm global | per_window)
+  train_cross_subject.py  Leave-one-subject-out generalization test
+  cross_subject.py      Multi-subject dataset builder (common montage, per-subject caps)
+  siena.py              Siena → CHB-MIT montage harmonization (external test set)
+  eval_external.py      Evaluate any model on Siena (window + event-level metrics)
+  finetune_siena.py     Domain-adaptation experiment (train on some Siena subjects)
+  subjects.py           Auto-discover downloaded patients
+  clinical_report.py    Orchestrates the LLM / template report
+  llm/                  Providers: foundry_local (default), anthropic (opt-in), template
+  rag/                  Retrieval-augmented grounding for the report
+scripts/
+  download_chbmit.py    Fetch CHB-MIT patients from PhysioNet
+  download_siena.py     Fetch the Siena external test set
+  download_foundry_model.py   Download + warm a local LLM (Foundry Local)
+  calibrate.py          Temperature-scale a model's probabilities
+models/                 Trained checkpoints (gitignored; rebuild by training)
+tests/                  Unit tests (risk assessment)
 ```
 
 ---
@@ -145,79 +131,79 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Data
-The raw EEG is **not** committed (large files). Download subjects from the
-[CHB-MIT database](https://physionet.org/content/chbmit/) into `data/raw/chbNN/`, each
-with its `chbNN-summary.txt` and the relevant `*.edf` files.
+## Run the web tool
+
+```bash
+# with the local LLM report (recommended):
+PATH="/opt/homebrew/bin:$PATH" PORT=8000 WARMUP_LLM=1 python serve_ui.py
+# then open http://localhost:8000
+```
+
+A plain `python serve_ui.py` also works — the **analysis** runs regardless; only the
+LLM report needs Foundry Local (otherwise it uses the offline template).
+
+## Get the data
+
+```bash
+# CHB-MIT (training + in-dataset test) — seizure files only keeps it compact
+python -m scripts.download_chbmit --subjects chb01-chb24 --seizure-only
+
+# Siena (external test set)
+python -m scripts.download_siena
+python -m src.subjects        # verify what was downloaded
+```
+
+Data goes under `data/raw/chbNN/` and `data/siena/PNxx/` (both gitignored).
+
+## Train & evaluate
+
+```bash
+# Train the deployable model (global normalization) on every downloaded patient
+python -m src.train_final
+
+# Train the cross-dataset-robust variant (per-window normalization)
+python -m src.train_final --norm per_window --out models/seizure_cnn2_zscore.pt
+
+# Honest within-CHB-MIT generalization (leave-one-subject-out)
+python -m src.train_cross_subject
+
+# External validation on Siena (window + event-level metrics + operating curve)
+python -m src.eval_external --model models/seizure_cnn2_zscore.pt
+```
+
+## Local LLM report (Foundry Local)
+
+The report is generated on-device — no data leaves the machine.
+
+```bash
+# one-time: install the Foundry Local runtime + a model
+brew tap microsoft/foundrylocal && brew install foundrylocal
+python scripts/download_foundry_model.py phi-3.5-mini   # or qwen2.5-0.5b (small/fast)
+```
+
+Providers (`src/llm/factory.py`): `foundry_local` (default, local), `anthropic`
+(opt-in, cloud — sends the analysis off-device), `template` (deterministic, offline).
+
+> Note: if `venv/` is copied between folders, the Foundry SDK's ONNX-runtime symlinks
+> can go stale — recreate the venv from `requirements.txt` rather than copying it.
+
+## Docker
+
+```bash
+docker build -t neuroscan .
+docker run --rm -p 8000:8000 neuroscan   # analysis works; LLM report needs extra wiring
+```
 
 ---
 
-## Usage
+## Datasets & credits
 
-### Run the clinical web app (live CNN + local LLM)
-```bash
-python serve_ui.py        # → http://localhost:8000  (no extra dependencies)
-```
-Upload a patient EDF, adjust detection sensitivity if needed, **Analyze**, then
-**Generate report**. The CNN analysis works with PyTorch alone; to get a local-LLM
-report, install Foundry Local and download a model once (see below).
+- **CHB-MIT Scalp EEG Database** — PhysioNet (`physionet.org/content/chbmit/`).
+- **Siena Scalp EEG Database** — PhysioNet (`physionet.org/content/siena-scalp-eeg/`).
+- Decorative 3D brain model: Science Museum Group (CC BY-SA 4.0).
 
-### Train / evaluate the models
-```bash
-python -m src.train                 # single-patient model → models/seizure_cnn.pt
-python -m src.train_cross_subject    # leave-one-subject-out CV (honest generalization)
-python -m src.train_final            # deployable SeizureCNN2 → models/seizure_cnn2_final.pt
-```
-Checkpoints bundle the weights, channel montage, and normalization stats, so inference
-reproduces the exact preprocessing.
+## Disclaimer
 
-### Calibrate confidences (optional)
-```bash
-python -m scripts.calibrate chb01 chb02 chb03   # → models/calibration.json
-```
-Fits temperature scaling so reported probabilities better reflect true frequencies;
-`src.predict` picks the file up automatically.
-
-### Tests
-```bash
-pytest tests/            # risk-assessment unit tests (numpy only — fast)
-```
-
----
-
-## Local LLM (Azure AI Foundry Local)
-
-The report layer is **local-first**. `foundry-local-sdk` is self-contained on macOS —
-download a model once, then it runs fully offline:
-
-```bash
-python scripts/download_foundry_model.py qwen2.5-0.5b   # small, fast first test
-python scripts/download_foundry_model.py phi-3.5-mini   # better report quality
-```
-
-### Providers (swappable via `REPORT_LLM_PROVIDER`)
-| Provider | What runs | Notes |
-|----------|-----------|-------|
-| `foundry_local` (default) | local model (Phi-3.5-mini, …) | fully offline; no data leaves the machine |
-| `anthropic` | cloud model | **opt-in, off by default** — sends data off-device |
-| `template` | deterministic, no LLM | always-available offline fallback |
-
-Swap the local model with one value (`REPORT_LLM_MODEL=phi-4`). The provider and the RAG
-retriever both sit behind small interfaces, so either can be replaced without touching
-callers.
-
-### RAG (local knowledge base)
-Drop epilepsy/EEG reference docs (guidelines, interpretation rules, sample reports) into
-`data/knowledge/`. With RAG enabled, the report is grounded in the most relevant passages.
-The default retriever is TF-IDF (scikit-learn, zero extra infra); a semantic
-`EmbeddingRetriever` can be added behind the same interface.
-
----
-
-## Known limitations / next steps
-- **Cross-subject accuracy is modest (~0.4 F1)** and highly patient-dependent — the real
-  lever is **patient-adaptive calibration** (fine-tune on a small slice of the target
-  patient) and/or many more subjects.
-- **No fixed training seed**, so results vary run to run.
-- **Not a medical device** — research/educational only. All outputs are decision-support
-  for a qualified neurologist, not a diagnosis.
+NeuroScan is a research prototype for **decision support**, not a medical device and
+not a diagnosis. Its cross-dataset evaluation confirms it is not reliable enough for
+clinical use on unseen recordings. A qualified neurologist must confirm every finding.

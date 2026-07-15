@@ -9,8 +9,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/neuroscan.css" />
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.161.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.161.0/examples/jsm/" } }
+</script>
 </head>
 <body>
+<canvas id="brainfx" aria-hidden="true"></canvas>
 <div class="app">
   <!-- ================= SIDEBAR ================= -->
   <aside class="sidebar">
@@ -28,6 +32,7 @@
           <span class="filepick-ic" id="fileIcon"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
           <span class="filepick-text" id="fileText">Choose an EDF file…</span>
         </label>
+        <p class="filepick-note">Drag &amp; drop your EEG recording here.</p>
       </div>
       <div class="field">
         <div class="slider-row"><span class="flabel">Detection sensitivity</span><span class="val" id="thVal">0.50</span></div>
@@ -48,14 +53,17 @@
         <h1>EEG Epilepsy Analysis &amp; Risk Assessment</h1>
         <p>Detect seizure activity in scalp EEG, assess epilepsy risk, and generate a clinical report with a fully-local LLM.</p>
       </div>
-      <div class="pill"><span class="dot" style="background:var(--moderate)"></span>Decision-support · not a medical device</div>
+      <div class="pill"><span class="dot" style="background:#e8a320"></span>Decision support · not a medical device</div>
     </div>
 
     <!-- Empty state -->
     <div id="emptyState" class="empty">
-      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2 5 4-12 2 7h6"/></svg></div>
-      <h2>Upload a recording to begin</h2>
-      <p>Upload the patient's EDF recording in the sidebar, then press <strong>Analyze recording</strong>. The model windows the signal, scores each 5-second window, and assesses recording-level epilepsy risk.</p>
+      <div class="empty-card" id="uploadPanel" role="button" tabindex="0" aria-label="Choose or drop an EDF recording">
+        <span class="up-ic" aria-hidden="true"><img src="/eeg.png" alt="" /></span>
+        <h2>Upload a recording to begin</h2>
+        <p>Drop the patient's EDF recording here or click to browse, then press <strong>Analyze recording</strong>. The model windows the signal, scores each 5-second window, and assesses recording-level epilepsy risk.</p>
+        <span class="up-hint">Click to browse · or drag &amp; drop an EDF file</span>
+      </div>
     </div>
 
     <!-- Loading skeleton -->
@@ -80,7 +88,13 @@
             <div class="sub" id="heroSub"></div>
           </div>
         </div>
-        <div class="score"><div class="num" id="heroScore"></div><div class="den">risk score / 100</div></div>
+        <div class="score">
+          <svg class="gauge" viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="gauge-track" cx="60" cy="60" r="52"></circle>
+            <circle class="gauge-arc" id="gaugeArc" cx="60" cy="60" r="52"></circle>
+          </svg>
+          <div class="gauge-center"><div class="num" id="heroScore"></div><div class="den">/ 100</div></div>
+        </div>
       </div>
 
       <div class="metrics" id="metrics"></div>
@@ -106,7 +120,7 @@
       <div class="card panel">
         <div class="report-head">
           <div>
-            <h3>Clinical EEG report</h3>
+            <h3>Clinical EEG Report</h3>
             <p id="reportCaption"></p>
           </div>
           <div class="report-actions">
@@ -123,5 +137,7 @@
 </div>
 
 <script src="/app.js"></script>
+<script src="/upload.js"></script>
+<script type="module" src="/brainfx.js"></script>
 </body>
 </html>

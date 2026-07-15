@@ -1,0 +1,16 @@
+# Keep the image small & the build fast: never copy these in.
+venv/
+data/                    # 7 GB of EEG recordings — uploaded via the web UI at runtime, not baked in
+__pycache__/
+**/__pycache__/
+*.pyc
+*.log
+video/
+.git/
+.gitignore
+.DS_Store
+tests/
+skills-lock.json
+scratchpad_streamlit.log
+design/_prev_dark/
+design/ref-base44/

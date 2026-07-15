@@ -127,8 +127,16 @@ class Handler(BaseHTTPRequestHandler):
             return self._static("neuroscan.css", "text/css")
         if route == "/app.js":
             return self._static("app.js", "application/javascript")
+        if route == "/brainfx.js":
+            return self._static("brainfx.js", "application/javascript")
+        if route == "/upload.js":
+            return self._static("upload.js", "application/javascript")
         if route == "/epilogo.png":
             return self._static("epilogo.png", "image/png", cache="public, max-age=31536000, immutable")
+        if route == "/eeg.png":
+            return self._static("eeg.png", "image/png", cache="public, max-age=31536000, immutable")
+        if route == "/brain3.glb":
+            return self._static("brain3.glb", "model/gltf-binary", cache="public, max-age=31536000, immutable")
         return self._send(404, "Not found", "text/plain")
 
     def do_POST(self):

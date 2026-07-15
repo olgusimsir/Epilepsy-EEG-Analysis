@@ -34,7 +34,8 @@ def common_channels(subjects):
     """
     sets = []
     for subj in subjects:
-        edfs = sorted(glob.glob(f"{DATA_ROOT}/{subj}/{subj}_*.edf"))
+        # `{subj}*.edf` so chb17's irregular chb17a_/chb17b_ names are found too.
+        edfs = sorted(glob.glob(f"{DATA_ROOT}/{subj}/{subj}*.edf"))
         if not edfs:
             raise FileNotFoundError(f"No EDF files found for {subj}")
         sets.append(set(_channels(edfs[0])))
@@ -81,12 +82,24 @@ def zscore_per_channel(X):
     return (X - mean) / std
 
 
-def build_multi_dataset(subjects, channel_names, window_sec=WINDOW_SEC):
-    """Build (X, y, subject_ids) over every downloaded EDF of every subject."""
+def build_multi_dataset(subjects, channel_names, window_sec=WINDOW_SEC,
+                        max_normals_per_subject=None, seed=42):
+    """Build (X, y, subject_ids) over every downloaded EDF of every subject.
+
+    max_normals_per_subject: if set, keep ALL seizure windows but randomly keep at
+    most this many NORMAL windows per subject. This bounds peak memory: the full
+    uncapped set is ~13 GB across all 24 CHB-MIT subjects (peak ~2x that during
+    concatenation) and does NOT fit in a typical machine's RAM. Capping here, as each
+    subject is read, means the giant array is never materialized — instead of loading
+    everything and capping afterward. None = keep every window (original behavior,
+    fine for a handful of subjects).
+    """
+    rng = np.random.default_rng(seed)
     X_list, y_list, subj_list = [], [], []
 
     for subj in subjects:
         info = parse_summary(f"{DATA_ROOT}/{subj}/{subj}-summary.txt")
+        subj_X, subj_y = [], []
         for fname, seizures in info.items():
             path = f"{DATA_ROOT}/{subj}/{fname}"
             if not os.path.exists(path):
@@ -101,11 +114,29 @@ def build_multi_dataset(subjects, channel_names, window_sec=WINDOW_SEC):
             n_seiz = int(labels.sum())
             print(f"{subj}/{fname}: {windows.shape[0]} windows, {n_seiz} seizure")
 
-            X_list.append(windows)
-            y_list.append(labels)
-            subj_list.append(np.full(len(labels), subj))
+            subj_X.append(windows)
+            subj_y.append(labels)
 
-    # float32 (MNE returns float64) — halves memory for the stacked window tensor.
+        if not subj_X:
+            continue
+        sx = np.concatenate(subj_X, axis=0)
+        sy = np.concatenate(subj_y, axis=0)
+
+        if max_normals_per_subject is not None:
+            # Keep every seizure window; subsample this subject's normal windows.
+            pos = np.where(sy == 1)[0]
+            neg = np.where(sy == 0)[0]
+            if len(neg) > max_normals_per_subject:
+                neg = rng.choice(neg, max_normals_per_subject, replace=False)
+            keep = np.sort(np.concatenate([pos, neg]))
+            sx, sy = sx[keep], sy[keep]
+            print(f"  -> {subj}: kept {len(sy)} windows ({int(sy.sum())} seizure) after normal cap")
+
+        # float32 (MNE returns float64) — halves memory for the stacked window tensor.
+        X_list.append(sx.astype(np.float32))
+        y_list.append(sy)
+        subj_list.append(np.full(len(sy), subj))
+
     X = np.concatenate(X_list, axis=0).astype(np.float32)
     y = np.concatenate(y_list, axis=0)
     subject_ids = np.concatenate(subj_list, axis=0)
@@ -113,7 +144,8 @@ def build_multi_dataset(subjects, channel_names, window_sec=WINDOW_SEC):
 
 
 if __name__ == "__main__":
-    subjects = ["chb01", "chb02", "chb03", "chb04", "chb05", "chb06", "chb07", "chb08"]
+    from src.subjects import available_subjects
+    subjects = available_subjects()
     chans = common_channels(subjects)
     print(f"Common channels ({len(chans)}): {chans}\n")
     X, y, sid = build_multi_dataset(subjects, chans)

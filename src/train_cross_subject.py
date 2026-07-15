@@ -20,9 +20,18 @@ from sklearn.model_selection import train_test_split
 
 from src.cross_subject import common_channels, build_multi_dataset, zscore_per_channel
 from src.model import SeizureCNN, SeizureCNN2
+from src.subjects import available_subjects
 from src.train import evaluate
 
-SUBJECTS = ["chb01", "chb02", "chb03", "chb05", "chb06", "chb07", "chb08"]
+# Every subject on disk that has at least one downloaded seizure file. A subject
+# with no seizure can't be a meaningful LOSO test fold, but is still used for
+# training (build_multi_dataset below reads all of `SUBJECTS`); the fold loop in
+# run_loso() skips a held-out subject with zero test seizures anyway.
+SUBJECTS = available_subjects(require_seizure=True)
+
+# Max NORMAL windows kept per subject during the build (all seizures are always kept).
+# Bounds peak RAM so the full 24-subject set (~13 GB) never has to be materialized.
+MAX_NORMALS_PER_SUBJECT = 500
 
 
 def _train(model, X_tr, y_tr, X_val, y_val, device):
@@ -117,20 +126,14 @@ def main():
 
     channels = common_channels(SUBJECTS)
     print(f"Common montage: {len(channels)} channels")
-    X, y, sid = build_multi_dataset(SUBJECTS, channels)
-    print(f"\nTotal: {X.shape[0]} windows, {int(y.sum())} seizure")
-
-    # Cap normal windows to bound memory (we have ~30x more normals than seizures,
-    # and the balanced sampler oversamples seizures anyway). Keep ALL seizures.
-    rng = np.random.default_rng(42)
-    pos = np.where(y == 1)[0]
-    neg = np.where(y == 0)[0]
-    max_neg = 8000
-    if len(neg) > max_neg:
-        neg = rng.choice(neg, max_neg, replace=False)
-    keep = np.sort(np.concatenate([pos, neg]))
-    X, y, sid = X[keep], y[keep], sid[keep]
-    print(f"After capping normals: {X.shape[0]} windows, {int(y.sum())} seizure "
+    # Cap normals PER SUBJECT during the build so the full ~13 GB set is never loaded
+    # (this machine has 9 GB RAM). Keeps all seizures; ~500 normals/subject over 24
+    # subjects ≈ 12k normals, comparable to the old global 8k cap but memory-safe and
+    # keeping every subject represented for the LOSO test folds.
+    X, y, sid = build_multi_dataset(
+        SUBJECTS, channels, max_normals_per_subject=MAX_NORMALS_PER_SUBJECT
+    )
+    print(f"\nTotal: {X.shape[0]} windows, {int(y.sum())} seizure "
           f"(~{X.nbytes/1e9:.1f} GB)\n")
 
     # 2x2: {global, per-channel} normalization x {SeizureCNN, SeizureCNN2}

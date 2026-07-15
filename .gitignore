@@ -1,9 +1,10 @@
 # Virtual environment
 venv/
 
-# Data (EEG files can be huge — we don't want them in Git)
-data/raw/
-data/processed/
+# Data (EEG recordings are multi-GB) — ignore all of data/ EXCEPT the small
+# RAG knowledge base, which the report generator needs.
+data/*
+!data/knowledge/
 
 # Trained model checkpoints
 models/
@@ -23,9 +24,16 @@ __pycache__/
 
 # Claude Code local session config
 .claude/
+
+# Design skills installed via npx (impeccable, taste) — not part of the project
+.agents/
+skills-lock.json
 # Scratch logs
 scratch_streamlit.log
 *.log
 
 # Presentation / personal docs (not part of the project)
 *.docx
+
+# Demo video + personal materials (565MB — too big for GitHub; linked from README)
+video/

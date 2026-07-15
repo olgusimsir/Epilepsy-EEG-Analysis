@@ -7,6 +7,7 @@ reproduce the exact preprocessing on any new recording.
 
 Run:  python -m src.train_final
 """
+import argparse
 import copy
 import os
 
@@ -18,40 +19,62 @@ from sklearn.model_selection import train_test_split
 
 from src.cross_subject import common_channels, build_multi_dataset
 from src.model import SeizureCNN2
+from src.subjects import available_subjects
 from src.train import evaluate
 
-SUBJECTS = ["chb01", "chb02", "chb03", "chb05", "chb06", "chb07", "chb08"]
+# Train the shippable model on every subject we have (including seizure-free ones,
+# which contribute useful negatives) — not just a hardcoded list.
+SUBJECTS = available_subjects(require_seizure=False)
 WINDOW_SEC = 5
 OUT_PATH = "models/seizure_cnn2_final.pt"
-MAX_NEG = 8000
+# Max NORMAL windows per subject kept during the build (all seizures always kept),
+# so the full 24-subject set (~13 GB) never has to fit in RAM (machine has 9 GB).
+MAX_NORMALS_PER_SUBJECT = 500
+
+
+def _zscore_per_window(X):
+    """Per-window, per-channel z-score (zero-mean/unit-var over time). Removes each
+    recording's amplitude/DC offset → far better cross-dataset transfer."""
+    m = X.mean(axis=2, keepdims=True)
+    s = X.std(axis=2, keepdims=True) + 1e-8
+    return ((X - m) / s).astype(np.float32)
 
 
 def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--norm", choices=["global", "per_window"], default="global",
+                    help="'global' = one dataset-wide mean/std (classic, deployed model); "
+                         "'per_window' = z-score each window/channel (cross-dataset robust)")
+    ap.add_argument("--out", default=OUT_PATH, help="checkpoint output path")
+    args = ap.parse_args()
+
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
-    print("Using device:", device)
+    print(f"Using device: {device}  |  normalization: {args.norm}  |  out: {args.out}")
 
     channels = common_channels(SUBJECTS)
     print(f"Common montage: {len(channels)} channels")
-    X, y, sid = build_multi_dataset(SUBJECTS, channels)
-    print(f"Total: {X.shape[0]} windows, {int(y.sum())} seizure")
-
-    # Cap normals to bound memory (keep all seizures).
-    rng = np.random.default_rng(42)
-    pos = np.where(y == 1)[0]
-    neg = np.where(y == 0)[0]
-    if len(neg) > MAX_NEG:
-        neg = rng.choice(neg, MAX_NEG, replace=False)
-    keep = np.sort(np.concatenate([pos, neg]))
-    X, y = X[keep], y[keep]
-    print(f"After capping normals: {X.shape[0]} windows, {int(y.sum())} seizure")
+    # Cap normals PER SUBJECT during the build (keep all seizures) so the full
+    # ~13 GB set is never loaded into this 9 GB machine.
+    X, y, sid = build_multi_dataset(
+        SUBJECTS, channels, max_normals_per_subject=MAX_NORMALS_PER_SUBJECT
+    )
+    print(f"Total after per-subject normal cap: {X.shape[0]} windows, {int(y.sum())} seizure "
+          f"(~{X.nbytes/1e9:.1f} GB)")
 
     # Hold out a small stratified validation set just for early stopping.
     X_tr, X_val, y_tr, y_val = train_test_split(
         X, y, test_size=0.15, random_state=42, stratify=y
     )
-    mean, std = X_tr.mean(), X_tr.std()
-    X_tr = (X_tr - mean) / std
-    X_val_t = torch.tensor((X_val - mean) / std, dtype=torch.float32).to(device)
+    if args.norm == "per_window":
+        # each window/channel normalized independently — no dataset-wide stats needed
+        mean, std = 0.0, 1.0
+        X_tr = _zscore_per_window(X_tr)
+        X_val_n = _zscore_per_window(X_val)
+    else:
+        mean, std = X_tr.mean(), X_tr.std()
+        X_tr = (X_tr - mean) / std
+        X_val_n = (X_val - mean) / std
+    X_val_t = torch.tensor(X_val_n, dtype=torch.float32).to(device)
     y_val_t = torch.tensor(y_val, dtype=torch.float32).unsqueeze(1).to(device)
 
     X_tr_t = torch.tensor(X_tr, dtype=torch.float32)
@@ -95,15 +118,16 @@ def main():
             "model_state": best_state,
             "n_channels": len(channels),
             "channels": channels,
+            "norm_mode": args.norm,
             "norm_mean": float(mean),
             "norm_std": float(std),
             "window_sec": WINDOW_SEC,
             "subjects": SUBJECTS,
             "best_val_f1": best_f1,
         },
-        OUT_PATH,
+        args.out,
     )
-    print(f"\nSaved final model to {OUT_PATH}  (best val F1 {best_f1:.3f})")
+    print(f"\nSaved final model to {args.out}  (norm={args.norm}, best val F1 {best_f1:.3f})")
 
 
 if __name__ == "__main__":

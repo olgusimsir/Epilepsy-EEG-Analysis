@@ -26,21 +26,26 @@ def build_report(assessment, filename, provider=None, api_key=None, model=None,
         retriever = build_retriever(knowledge_path)
         context = retriever.retrieve(query_from_assessment(assessment), k=k)
 
-    prov = get_provider(provider, api_key=api_key, model=model)
-    tag = "+rag" if context else ""
+    import sys
+    try:
+        prov = get_provider(provider, api_key=api_key, model=model)
+    except Exception as e:
+        # Provider could not be CONSTRUCTED (e.g. Foundry Local not installed/running).
+        # Degrade quietly to the deterministic offline report — log the reason to the
+        # server, but keep the clinician-facing report clean (no error text).
+        print(f"[report] LLM provider unavailable, using offline template: {e}", file=sys.stderr)
+        return template_report(assessment, filename), "offline template"
 
-    if prov is None:  # template selected (template does not consume context)
-        return template_report(assessment, filename), "template"
+    tag = "+rag" if context else ""
+    if prov is None:  # template explicitly selected
+        return template_report(assessment, filename), "offline template"
 
     try:
         user = build_user_message(assessment, filename, context_chunks=context)
         return prov.generate(SYSTEM_PROMPT, user), prov.name + tag
     except Exception as e:
-        # Any provider failure (service down, missing package, network) -> offline template.
-        return (
-            template_report(assessment, filename) + f"\n\n[{prov.name} unavailable: {e}]",
-            f"template ({prov.name} error)",
-        )
+        print(f"[report] {prov.name} failed, using offline template: {e}", file=sys.stderr)
+        return template_report(assessment, filename), "offline template"
 
 
 if __name__ == "__main__":

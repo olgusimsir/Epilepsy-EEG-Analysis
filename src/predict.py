@@ -17,6 +17,23 @@ from src.model import SeizureCNN, SeizureCNN2
 WINDOW_SEC = 5
 
 
+def normalize_windows(windows, ckpt):
+    """Preprocess windows to match how the model was trained.
+
+    Two modes, chosen by the checkpoint's `norm_mode` (default 'global' for backward
+    compatibility with existing models):
+      * 'global'      — subtract one dataset-wide mean/std (stored in the checkpoint).
+      * 'per_window'  — z-score EACH window's EACH channel to zero-mean/unit-var. This
+        removes per-recording amplitude/DC offset, which is what lets a raw-waveform
+        model transfer across datasets/hardware (used for cross-dataset robustness).
+    """
+    if ckpt.get("norm_mode") == "per_window":
+        m = windows.mean(axis=2, keepdims=True)
+        s = windows.std(axis=2, keepdims=True) + 1e-8
+        return (windows - m) / s
+    return (windows - ckpt["norm_mean"]) / ckpt["norm_std"]
+
+
 def load_checkpoint(path):
     """Return (model, ckpt). Builds the right architecture from ckpt['arch'].
 
@@ -41,27 +58,66 @@ def load_checkpoint(path):
     return model, ckpt
 
 
+TARGET_SFREQ = 256
+
+
+def _montage_data(edf_path, channels):
+    """Load an EDF as (len(channels), samples) in the model's montage at 256 Hz.
+
+    Montage-agnostic — accepts either input format:
+      * CHB-MIT style: the bipolar channels (FP1-F7, ...) already exist by name → pick them.
+      * Referential style (e.g. Siena: EEG Fp1, ...): DERIVE each bipolar channel by
+        subtraction via siena.BIPOLAR_MAP (T3->T7 etc., F9/F10 proxy for FT9/FT10; any
+        electrode this recording lacks is zero-filled).
+    Resamples to 256 Hz so the window length matches training. Raises ValueError if the
+    montage is unrecognizable (nothing could be built)."""
+    import mne
+    raw = mne.io.read_raw_edf(edf_path, preload=True, verbose="ERROR")
+    if abs(raw.info["sfreq"] - TARGET_SFREQ) > 1e-3:
+        raw.resample(TARGET_SFREQ)
+    have = set(raw.ch_names)
+    if all(c in have for c in channels):                 # CHB-MIT format — direct pick
+        raw.pick(channels); raw.reorder_channels(channels)
+        return raw.get_data(), raw.info["sfreq"]
+    from src.siena import BIPOLAR_MAP, _norm                # referential — derive bipolar
+    data = raw.get_data()
+    idx = {_norm(c): i for i, c in enumerate(raw.ch_names)}
+    rows, built = [], 0
+    for name in channels:
+        plus, minus = BIPOLAR_MAP.get(name, (None, None))
+        if plus in idx and minus in idx:
+            rows.append(data[idx[plus]] - data[idx[minus]]); built += 1
+        else:
+            rows.append(np.zeros(data.shape[1], dtype=float))
+    if built == 0:
+        raise ValueError("unrecognized EEG montage — expected CHB-MIT bipolar channels "
+                         "or standard 10-20 referential electrodes")
+    return np.asarray(rows), raw.info["sfreq"]
+
+
 def _window(edf_path, ckpt, window_sec):
-    """Window the recording, selecting the model's channel montage if it has one."""
+    """Window the recording into the model's montage (montage-agnostic)."""
     channels = ckpt.get("channels")
-    if channels:  # cross-subject model — select + reorder to its montage by name
-        from src.cross_subject import load_and_window_multi
-        windows, _ = load_and_window_multi(edf_path, [], channels, window_sec)
-    else:  # single-patient model — all native channels
+    if not channels:  # single-patient model — all native channels
         from src.windowing import load_and_window
         windows, _ = load_and_window(edf_path, window_sec=window_sec)
-    return windows
+        return windows
+    data, sfreq = _montage_data(edf_path, channels)
+    ws = int(window_sec * sfreq)
+    n = data.shape[1] // ws
+    if n == 0:
+        return np.empty((0, len(channels), ws))
+    return np.stack([data[:, i * ws:(i + 1) * ws] for i in range(n)])
 
 
 def _channel_data(edf_path, ckpt):
-    """Load the recording as (channels, samples), selecting the model's montage."""
-    import mne
-    raw = mne.io.read_raw_edf(edf_path, preload=True, verbose="ERROR")
+    """Load the recording as (channels, samples) in the model's montage at 256 Hz."""
     channels = ckpt.get("channels")
-    if channels:
-        raw.pick(channels)
-        raw.reorder_channels(channels)
-    return raw.get_data(), raw.info["sfreq"]
+    if not channels:
+        import mne
+        raw = mne.io.read_raw_edf(edf_path, preload=True, verbose="ERROR")
+        return raw.get_data(), raw.info["sfreq"]
+    return _montage_data(edf_path, channels)
 
 
 def _score(model, X, temperature=1.0):
@@ -101,7 +157,7 @@ def _overlap_probs(model, ckpt, edf_path, window_sec, overlap):
     starts = list(range(0, data.shape[1] - window_size + 1, stride))
     wins = np.stack([data[:, s:s + window_size] for s in starts])
 
-    X = (wins - ckpt["norm_mean"]) / ckpt["norm_std"]
+    X = normalize_windows(wins, ckpt)
     X = torch.tensor(X, dtype=torch.float32)
     dense = _score(model, X, ckpt.get("temperature", 1.0))
 
@@ -128,7 +184,7 @@ def predict_recording(model, ckpt, edf_path, threshold=0.5, window_sec=WINDOW_SE
         probs = _overlap_probs(model, ckpt, edf_path, window_sec, overlap)
     else:
         windows = _window(edf_path, ckpt, window_sec)
-        X = (windows - ckpt["norm_mean"]) / ckpt["norm_std"]
+        X = normalize_windows(windows, ckpt)
         X = torch.tensor(X, dtype=torch.float32)
         probs = _score(model, X, ckpt.get("temperature", 1.0))
     return probs, (probs > threshold).astype(int)

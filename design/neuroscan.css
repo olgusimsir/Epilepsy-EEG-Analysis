@@ -231,3 +231,470 @@ input[type=range]:focus-visible{outline:2px solid var(--accent);outline-offset:4
   .topbar{flex-direction:column;gap:12px}
   .cols{grid-template-columns:1fr}
 }
+/* decorative 3D brain layer — added; sits behind ALL app content, half off the
+   right edge, softly faded into the page. Does not affect any existing element. */
+#brainfx{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;pointer-events:none;
+  -webkit-mask-image:radial-gradient(85% 88% at 58% 50%,#000 58%,transparent 95%);
+  mask-image:radial-gradient(85% 88% at 58% 50%,#000 58%,transparent 95%)}
+@media (prefers-reduced-motion:reduce){#brainfx{display:none}}
+@media (max-width:820px){#brainfx{opacity:.5}}
+
+/* labeled EEG montage behind the empty state (decorative; additive — existing
+   icon/heading/text sit on top via z-index, nothing else is affected) */
+#emptyState{position:relative;overflow:hidden}
+#emptyState>.ic,#emptyState>h2,#emptyState>p{position:relative;z-index:1}
+.eeg-montage{position:absolute;inset:0;z-index:0;pointer-events:none;display:flex;flex-direction:column;justify-content:center;gap:2px;padding:16px 6px}
+.eeg-montage .erow{display:flex;align-items:center;gap:14px;flex:1;min-height:0}
+.eeg-montage .elbl{flex:0 0 auto;width:58px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.02em;color:var(--text-muted);white-space:nowrap;opacity:.8}
+.eeg-montage .ewave{flex:1;height:100%;overflow:hidden}
+.eeg-montage svg{display:block;width:200%;height:100%}
+.eeg-montage .escroll{animation:eegscroll linear infinite}
+@keyframes eegscroll{to{transform:translateX(-1200px)}}
+@media (prefers-reduced-motion:reduce){.eeg-montage .escroll{animation:none}}
+
+/* soft moving shine sweep on the primary CTA(s) + the status pill (the logo
+   wordmark already shimmers). A gentle light streak crosses, then pauses. */
+.btn:not(.ghost){position:relative;overflow:hidden;isolation:isolate}
+.btn:not(.ghost)::after{content:"";position:absolute;top:0;left:-70%;width:42%;height:100%;z-index:1;pointer-events:none;
+  background:linear-gradient(100deg,transparent 0%,rgba(255,255,255,.32) 50%,transparent 100%);transform:skewX(-16deg);
+  animation:shine-sweep 4.8s ease-in-out infinite}
+.btn:not(.ghost) svg{position:relative;z-index:2}
+.pill{position:relative;overflow:hidden;isolation:isolate}
+.pill::after{content:"";position:absolute;top:0;left:-70%;width:48%;height:100%;z-index:1;pointer-events:none;
+  background:linear-gradient(100deg,transparent 0%,rgba(255,255,255,.20) 50%,transparent 100%);transform:skewX(-16deg);
+  animation:shine-sweep 5.8s ease-in-out infinite}
+@keyframes shine-sweep{0%,58%{left:-70%}92%,100%{left:135%}}
+@media (prefers-reduced-motion:reduce){.btn:not(.ghost)::after,.pill::after{animation:none;opacity:0}}
+
+/* ═══ Apple VisionOS liquid-glass upload card (overrides .filepick) ═══
+   Light text on the glass (this is a dark UI — dark #1F2937 text would be
+   unreadable on translucent white glass over the dark sidebar). */
+.filepick{
+  display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+  gap:12px; width:100%; min-height:178px; padding:30px 22px; border-radius:30px; cursor:pointer;
+  position:relative; isolation:isolate; overflow:hidden; font-size:15px; color:#f4f7fb;
+  background:rgba(255,255,255,.14);
+  -webkit-backdrop-filter:blur(24px) saturate(1.4); backdrop-filter:blur(24px) saturate(1.4);
+  border:1px solid rgba(255,255,255,.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.4),
+    inset 0 -1px 0 rgba(255,255,255,.05),
+    0 18px 40px -18px rgba(0,0,0,.55),
+    0 2px 8px rgba(0,0,0,.25);
+  transition:transform .25s ease, background .25s ease, box-shadow .25s ease, border-color .25s ease, backdrop-filter .25s ease;
+}
+/* iridescent blue/orange edge reflection (1px gradient border ring) */
+.filepick::before{
+  content:""; position:absolute; inset:0; border-radius:inherit; padding:1px; pointer-events:none; z-index:0; opacity:.85;
+  background:linear-gradient(135deg, rgba(96,165,250,.6), rgba(255,255,255,.04) 40%, rgba(255,255,255,.04) 60%, rgba(251,191,36,.5));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite:exclude;
+}
+.filepick > *{position:relative; z-index:1}
+.filepick:hover{
+  transform:translateY(-3px); background:rgba(255,255,255,.19);
+  -webkit-backdrop-filter:blur(30px) saturate(1.5); backdrop-filter:blur(30px) saturate(1.5);
+  border-color:rgba(255,255,255,.3);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.45),
+    0 22px 48px -18px rgba(0,0,0,.6),
+    0 0 0 1px rgba(96,165,250,.3),
+    0 0 26px -2px rgba(96,165,250,.5);
+}
+.filepick:focus-within{
+  border-color:rgba(96,165,250,.6);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.45), 0 0 0 3px rgba(96,165,250,.4), 0 18px 40px -18px rgba(0,0,0,.55);
+  outline:none;
+}
+.filepick.dragover{
+  transform:translateY(-3px); background:rgba(90,180,255,.2); border-color:rgba(56,189,248,.9);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 0 0 1px rgba(56,189,248,.75), 0 0 36px -2px rgba(56,189,248,.75);
+}
+.filepick .filepick-ic{
+  display:flex; align-items:center; justify-content:center; width:54px; height:54px; border-radius:17px; flex:0 0 auto;
+  background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.2); box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
+}
+.filepick .filepick-ic svg{width:26px; height:26px; stroke:#eaf1fb; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round}
+.filepick .filepick-text{overflow:visible; text-overflow:clip; white-space:normal; font-size:15px; font-weight:500; color:#f4f7fb; letter-spacing:-.01em}
+.filepick-cap{font-size:12px; font-weight:400; color:rgba(226,232,240,.6); max-width:24ch; line-height:1.45}
+.filepick.has-file{background:rgba(96,165,250,.17); border-color:rgba(96,165,250,.55)}
+.filepick.has-file .filepick-ic svg{stroke:#bfe0ff}
+@media (prefers-reduced-motion:reduce){.filepick{transition:none} .filepick:hover,.filepick.dragover{transform:none}}
+
+/* upload card back to a horizontal glass bar (icon left, text beside), caption
+   removed; Analyze button → whiter glass with dark text */
+.filepick{flex-direction:row; align-items:center; justify-content:flex-start; text-align:left; gap:13px; min-height:0; padding:14px 16px; border-radius:18px}
+.filepick .filepick-ic{width:40px; height:40px; border-radius:12px}
+.filepick .filepick-ic svg{width:21px; height:21px}
+.filepick .filepick-text{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:14px}
+.filepick-cap{display:none}
+
+#analyzeBtn{
+  background:rgba(255,255,255,.9); color:#17233b; border:1px solid rgba(255,255,255,.7);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3); backdrop-filter:blur(18px) saturate(1.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 10px 26px -12px rgba(0,0,0,.5), 0 2px 6px rgba(0,0,0,.2);
+}
+#analyzeBtn:hover{background:rgba(255,255,255,.97); transform:translateY(-1px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.95), 0 14px 30px -12px rgba(0,0,0,.55), 0 0 22px -6px rgba(96,165,250,.45)}
+#analyzeBtn:active{transform:translateY(1px)}
+
+/* caption sits BELOW the upload card (outside the glass), trimmed */
+.filepick-note{margin-top:3px; font-size:12px; color:var(--text-muted); line-height:1.45}
+
+/* upload card: shorter (fit content), dashed frame like before, plain icon (no chip) */
+.filepick{width:auto; align-self:flex-start; max-width:100%; border-style:dashed; border-color:rgba(96,165,250,.5)}
+.filepick::before{display:none}                 /* drop the iridescent solid ring for a clean dashed frame */
+.filepick .filepick-ic{width:auto; height:auto; background:none; border:none; box-shadow:none; border-radius:0}
+.filepick .filepick-text{flex:0 1 auto}
+
+/* upload card: full sidebar width (dashed frame + plain icon kept) */
+.filepick{width:100%; align-self:stretch; max-width:none}
+
+/* choose-edf card: whiter dashed frame, no upward hover motion */
+.filepick{border-color:rgba(255,255,255,.6)}
+.filepick:hover{transform:none}
+.filepick.dragover{transform:none}
+/* analyze button: same translucent bg as the card, white text */
+#analyzeBtn{background:rgba(255,255,255,.14); color:#f4f7fb}
+#analyzeBtn:hover{background:rgba(255,255,255,.2)}
+
+/* detection sensitivity slider: blue → gold */
+.slider-row .val{color:#e8a320}
+input[type=range]{background:linear-gradient(90deg, rgba(232,163,32,.6), var(--bg-inset) 62%)}
+input[type=range]::-webkit-slider-thumb{border-color:#e8a320}
+input[type=range]::-moz-range-thumb{border-color:#e8a320}
+input[type=range]:hover::-webkit-slider-thumb{border-color:#c98a12}
+input[type=range]:focus-visible{outline-color:#e8a320}
+
+/* status pill: gold tone */
+.pill{background:rgba(232,163,32,.1); border-color:rgba(232,163,32,.34); color:#e8a320}
+
+/* empty-state symbol is now the EEG headset image */
+.empty .ic{width:auto; height:auto; background:none; border:none; border-radius:0}
+.empty .ic img{width:92px; height:auto; display:block}
+
+/* empty-state symbol 25% smaller */
+.empty .ic img{width:69px}
+
+/* empty-state EEG montage: nearest row lights up slightly on hover */
+.eeg-montage .erow path{transition:stroke-opacity .25s ease, stroke-width .25s ease, stroke .25s ease}
+.eeg-montage .erow.hot path{stroke-opacity:.82; stroke-width:1.7; stroke:#8fa2b6}
+/* empty-state icon: a little smaller + lower contrast */
+.empty .ic img{width:58px; opacity:.55; filter:contrast(.9) saturate(.9)}
+
+/* montage: single full-width animated path (soft waves, cursor-reactive) */
+.eeg-montage svg{width:100%}
+/* icon: a little more solid (not full) */
+.empty .ic img{opacity:.72; filter:none}
+
+/* ── circular risk-score gauge ── */
+.hero .score{position:relative; width:132px; height:132px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; text-align:center}
+.hero .score .gauge{width:132px; height:132px; transform:rotate(-90deg)}
+.hero .score .gauge-track{fill:none; stroke:rgba(255,255,255,.09); stroke-width:9}
+.hero .score .gauge-arc{fill:none; stroke:#ef4444; stroke-width:9; stroke-linecap:round;
+  filter:drop-shadow(0 0 6px rgba(239,68,68,.6)); transition:stroke-dashoffset .9s cubic-bezier(.22,1,.36,1), stroke .3s}
+.hero .score .gauge-center{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center}
+.hero .score .gauge-center .num{font-size:40px; font-weight:800; line-height:1; letter-spacing:-.02em; font-variant-numeric:tabular-nums}
+.hero .score .gauge-center .den{font-size:12px; font-weight:500; color:var(--text-secondary); margin-top:2px}
+.hero.high .score .gauge-arc{stroke:var(--high); filter:drop-shadow(0 0 8px rgba(248,113,113,.7))}
+.hero.moderate .score .gauge-arc{stroke:var(--moderate); filter:drop-shadow(0 0 8px rgba(251,191,36,.6))}
+.hero.low .score .gauge-arc{stroke:var(--low); filter:drop-shadow(0 0 8px rgba(74,222,128,.55))}
+
+/* ── 4 neon-highlighted metric cards ── */
+.metric.m1{--c:#22d3ee} .metric.m2{--c:#d946ef} .metric.m3{--c:#34d399} .metric.m4{--c:#fbbf24}
+.metric.m1,.metric.m2,.metric.m3,.metric.m4{border-color:transparent;
+  box-shadow:0 0 0 1px var(--c), 0 0 18px -5px var(--c), 0 10px 28px -16px #000;
+  transition:transform .2s ease, box-shadow .2s ease}
+.metric.m1:hover,.metric.m2:hover,.metric.m3:hover,.metric.m4:hover{transform:translateY(-2px);
+  box-shadow:0 0 0 1px var(--c), 0 0 26px -3px var(--c), 0 14px 32px -14px #000}
+.metric.m1 .icon,.metric.m2 .icon,.metric.m3 .icon,.metric.m4 .icon{
+  background:color-mix(in srgb, var(--c) 16%, transparent); box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent)}
+.metric.m1 .icon svg,.metric.m2 .icon svg,.metric.m3 .icon svg,.metric.m4 .icon svg{stroke:var(--c)}
+.metric.m1 .label,.metric.m2 .label,.metric.m3 .label,.metric.m4 .label{color:var(--c)}
+
+/* risk hero: span ~the first three metric blocks, gauge circle on the left */
+#results .hero{width:74.5%; align-self:flex-start; justify-content:flex-start; gap:26px}
+#results .hero .score{order:-1}
+@media (max-width:820px){#results .hero{width:100%}}
+
+/* tone down the neon card highlight (was too strong) */
+.metric.m1,.metric.m2,.metric.m3,.metric.m4{
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--c) 50%, transparent), 0 0 9px -6px var(--c), 0 10px 26px -18px #000}
+.metric.m1:hover,.metric.m2:hover,.metric.m3:hover,.metric.m4:hover{
+  box-shadow:0 0 0 1px color-mix(in srgb, var(--c) 70%, transparent), 0 0 15px -5px var(--c), 0 14px 30px -16px #000}
+
+/* metric cards → glass + dashed frame like the upload card (neon-tinted per card) */
+.metric.m1,.metric.m2,.metric.m3,.metric.m4{
+  background:rgba(255,255,255,.11);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3); backdrop-filter:blur(18px) saturate(1.3);
+  border:1.5px dashed color-mix(in srgb, var(--c) 55%, rgba(255,255,255,.45)); border-radius:20px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 12px 28px -18px rgba(0,0,0,.6), 0 0 9px -6px var(--c)}
+.metric.m1:hover,.metric.m2:hover,.metric.m3:hover,.metric.m4:hover{
+  transform:translateY(-2px); background:rgba(255,255,255,.15);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.35), 0 16px 32px -16px rgba(0,0,0,.6), 0 0 15px -5px var(--c)}
+
+/* risk hero: tilt + intensify on hover (redder for high-risk) */
+.hero{transition:transform .28s cubic-bezier(.22,1,.36,1), background .28s ease, border-color .28s ease}
+.hero:hover{transform:perspective(900px) rotateX(2deg) rotateY(-4deg)}
+.hero.high:hover{background:rgba(239,68,68,.28); border-color:rgba(239,68,68,.62)}
+.hero.moderate:hover{background:rgba(251,191,36,.24); border-color:rgba(251,191,36,.55)}
+.hero.low:hover{background:rgba(74,222,128,.22); border-color:rgba(74,222,128,.5)}
+@media (prefers-reduced-motion:reduce){.hero:hover{transform:none}}
+
+/* detected-episodes / chart / report panels → glass like the upload card, SOLID frame */
+.panel{background:rgba(255,255,255,.09);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3); backdrop-filter:blur(18px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.2); border-radius:20px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 14px 30px -18px rgba(0,0,0,.55)}
+
+/* blue buttons → gold (Analyze stays its own white glass via its id) */
+.btn:not(.ghost){background:#e8a320; color:#1c1305; box-shadow:0 8px 24px -10px rgba(232,163,32,.55)}
+.btn:not(.ghost):hover{background:#d0940f}
+
+/* panels (incl. the graph card): dark NAVY glass so the brain's whiteness behind
+   doesn't lighten them — they read as if the background is still navy */
+.panel{background:rgba(18,27,45,.8);
+  -webkit-backdrop-filter:blur(12px) saturate(1.05); backdrop-filter:blur(12px) saturate(1.05);
+  border:1px solid rgba(255,255,255,.1);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 14px 30px -18px rgba(0,0,0,.6); border-radius:20px}
+
+/* red risk block: tint shifted to the other side + highlighted */
+.hero.high{background:linear-gradient(90deg, rgba(239,68,68,.06) 0%, rgba(239,68,68,.24) 100%);
+  border-color:rgba(239,68,68,.5); box-shadow:0 0 24px -8px rgba(239,68,68,.45)}
+/* soft EEG-wave background that fades in inside the block on hover */
+.hero::before{content:""; position:absolute; inset:0; z-index:0; pointer-events:none; opacity:0; transition:opacity .35s ease;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='34'%3E%3Cpath d='M0 17 C 17 3 23 3 35 17 S 53 31 70 17 S 88 3 105 17 S 123 31 140 17' fill='none' stroke='%23ffd2d2' stroke-opacity='0.5' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-size:140px 34px; background-repeat:repeat; animation:herowave 5s linear infinite}
+.hero:hover::before{opacity:.42}
+@keyframes herowave{to{background-position:-140px 0}}
+@media (prefers-reduced-motion:reduce){.hero::before{animation:none}}
+/* report: blue parts → gold */
+.report-body h4{color:#e8a320}
+.report-body .src code{color:#e8a320}
+.hl:hover{color:#ffe9c2; text-shadow:0 0 8px rgba(232,163,32,.85), 0 0 16px rgba(232,163,32,.5)}
+
+/* only the Per-window seizure probability (chart) card stays dark-navy glass;
+   revert the detected-episodes and report cards to the previous card look */
+.panel{background:var(--bg-raised); -webkit-backdrop-filter:none; backdrop-filter:none;
+  border:1px solid var(--border-subtle); border-radius:var(--r-lg); box-shadow:var(--shadow-md)}
+.panel:has(#chart){background:rgba(18,27,45,.8);
+  -webkit-backdrop-filter:blur(12px) saturate(1.05); backdrop-filter:blur(12px) saturate(1.05);
+  border:1px solid rgba(255,255,255,.1); border-radius:20px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12), 0 14px 30px -18px rgba(0,0,0,.6)}
+
+/* detected-episodes + clinical-report cards → glass like the upload card, SOLID frame */
+.panel:has(#episodes), .panel:has(.report-head){
+  background:rgba(255,255,255,.1);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3); backdrop-filter:blur(18px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.22); border-radius:20px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 14px 30px -18px rgba(0,0,0,.5)}
+/* generated report: gold "lighting" frame (was blue) */
+.report-body{border-color:rgba(232,163,32,.45) !important; background:rgba(232,163,32,.05) !important;
+  box-shadow:0 0 0 1px rgba(232,163,32,.14), 0 10px 34px -14px rgba(232,163,32,.35) !important}
+/* generate report button → white-glass shine like the analyze button */
+#reportBtn{background:rgba(255,255,255,.14); color:#f4f7fb; border:1px solid rgba(255,255,255,.4);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3); backdrop-filter:blur(18px) saturate(1.3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5), 0 10px 26px -12px rgba(0,0,0,.5)}
+#reportBtn:hover{background:rgba(255,255,255,.2)}
+
+/* generate report button → gold (keeps the shine sweep) */
+#reportBtn{background:#e8a320; color:#1c1305; border:1px solid transparent;
+  -webkit-backdrop-filter:none; backdrop-filter:none; box-shadow:0 8px 24px -10px rgba(232,163,32,.55)}
+#reportBtn:hover{background:#d0940f}
+#reportBtn svg{stroke:#1c1305}
+
+/* ── brownish luxury gold ── */
+#reportBtn{background:linear-gradient(135deg,#d8b063 0%,#a97c33 55%,#8f6626 100%); color:#2a1d06;
+  border:1px solid rgba(120,88,34,.5); box-shadow:0 8px 24px -10px rgba(140,102,38,.6)}
+#reportBtn:hover{background:linear-gradient(135deg,#e2bd76 0%,#b5843a 55%,#996d2a 100%)}
+#reportBtn svg{stroke:#2a1d06}
+/* clinical report card framed in the same luxury gold */
+.panel:has(.report-head){border-color:rgba(176,138,63,.6);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 0 0 1px rgba(176,138,63,.28), 0 14px 30px -18px rgba(0,0,0,.5)}
+/* generated report inner frame + headings in the luxury gold */
+.report-body{border-color:rgba(176,138,63,.5) !important; background:rgba(176,138,63,.06) !important;
+  box-shadow:0 0 0 1px rgba(176,138,63,.16), 0 10px 34px -14px rgba(140,102,38,.32) !important}
+.report-body h4{color:#c79a4e}
+.report-body .src code{color:#c79a4e}
+
+/* brain2.png (background removed) as the decorative brain — centered in the main
+   area (right of the sidebar), behind all content, gentle drift, no 3D. */
+#brainimg{position:fixed; top:50%; left:calc(50% + 160px); transform:translate(-50%,-50%); z-index:0; pointer-events:none}
+#brainimg img{display:block; width:44vw; max-width:760px; height:auto; opacity:.82;
+  -webkit-mask-image:radial-gradient(82% 82% at 50% 50%, #000 74%, transparent 100%);
+  mask-image:radial-gradient(82% 82% at 50% 50%, #000 74%, transparent 100%);
+  animation:braindrift 9s ease-in-out infinite}
+@keyframes braindrift{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@media (max-width:820px){#brainimg{left:50%} #brainimg img{width:70vw; opacity:.5}}
+@media (prefers-reduced-motion:reduce){#brainimg img{animation:none}}
+
+/* empty-state text as premium golden boxes that slide down on entrance */
+#emptyState h2{
+  display:inline-block; padding:12px 30px; border-radius:14px; color:#f3e4c2;
+  background:linear-gradient(135deg, rgba(232,163,32,.24), rgba(176,138,63,.12));
+  border:1px solid rgba(232,163,32,.55);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28), 0 12px 30px -14px rgba(232,163,32,.55);
+  animation:goldslide .75s cubic-bezier(.22,1,.36,1) both;
+}
+#emptyState p{
+  display:block; max-width:640px; margin:2px auto 0; padding:14px 30px; border-radius:12px; color:#e8d6ad;
+  background:linear-gradient(135deg, rgba(232,163,32,.15), rgba(176,138,63,.08));
+  border:1px solid rgba(232,163,32,.42);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 14px 30px -16px rgba(232,163,32,.42);
+  animation:goldslide .75s cubic-bezier(.22,1,.36,1) .14s both;
+}
+#emptyState p strong{color:#f7ecd0}
+@keyframes goldslide{from{opacity:0; transform:translateY(-28px)} to{opacity:1; transform:none}}
+@media (prefers-reduced-motion:reduce){#emptyState h2,#emptyState p{animation:none}}
+
+/* empty-state: left-aligned, heading as a pill button, each sentence its own box */
+.empty{align-items:flex-start; text-align:left}
+#emptyState h2{border-radius:9999px; padding:12px 32px}
+#emptyState p{margin:0; max-width:560px; text-align:left}
+#emptyState p:nth-of-type(2){animation-delay:.3s}
+
+/* ── empty state: clean guided 3 steps (resets the earlier gold-box styling) ── */
+#emptyState h2{background:none; border:none; box-shadow:none; padding:0; border-radius:0;
+  color:var(--text-primary); font-size:23px; font-weight:700; letter-spacing:-.01em; display:block;
+  animation:goldslide .6s cubic-bezier(.22,1,.36,1) both}
+#emptyState p{background:none; border:none; box-shadow:none; padding:0; margin:0; border-radius:0; max-width:none}
+
+.steps-guide{list-style:none; margin:22px 0 0; padding:0; display:flex; flex-direction:column; gap:14px}
+.steps-guide li{display:flex; align-items:center; gap:14px; animation:goldslide .6s cubic-bezier(.22,1,.36,1) both}
+.steps-guide li:nth-child(1){animation-delay:.07s}
+.steps-guide li:nth-child(2){animation-delay:.15s}
+.steps-guide li:nth-child(3){animation-delay:.23s}
+.steps-guide .n{flex:0 0 auto; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:15px; color:#1c1305; font-variant-numeric:tabular-nums;
+  background:linear-gradient(135deg,#e8c979,#c79a4e); border:1px solid rgba(232,163,32,.55);
+  box-shadow:0 6px 16px -8px rgba(232,163,32,.7), inset 0 1px 0 rgba(255,255,255,.45)}
+.steps-guide .t{font-size:15px; color:var(--text-secondary); line-height:1.4}
+.steps-guide .t strong{color:var(--text-primary); font-weight:600}
+.steps-note{margin-top:22px !important; font-size:12.5px; color:var(--text-muted); line-height:1.5; max-width:54ch;
+  animation:goldslide .6s cubic-bezier(.22,1,.36,1) .3s both}
+
+/* step number circles → same gold as the detection-sensitivity control */
+.steps-guide .n{background:#e8a320; border-color:rgba(232,163,32,.6);
+  box-shadow:0 6px 16px -8px rgba(232,163,32,.7), inset 0 1px 0 rgba(255,255,255,.4)}
+
+/* ── empty state: title + paragraph inside a clean rectangle card ── */
+.empty{border:none !important; background:none !important}
+.empty-card{max-width:560px; padding:26px 30px; border-radius:16px; text-align:left;
+  background:linear-gradient(150deg, rgba(232,163,32,.10), rgba(176,138,63,.04));
+  border:1px solid rgba(232,163,32,.42);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 18px 38px -22px rgba(0,0,0,.6);
+  animation:goldslide .7s cubic-bezier(.22,1,.36,1) both}
+#emptyState h2{background:none; border:none; box-shadow:none; padding:0; border-radius:0;
+  margin:0 0 12px; color:var(--text-primary); font-size:22px; font-weight:700;
+  letter-spacing:-.01em; animation:none}
+#emptyState p{background:none; border:none; box-shadow:none; padding:0; margin:0; border-radius:0;
+  max-width:none; color:var(--text-secondary); font-size:14.5px; line-height:1.65; animation:none}
+#emptyState p strong{color:var(--text-primary); font-weight:600}
+
+/* ── empty state: white dashed rectangle, kept in the left space beside the brain ── */
+.empty{display:flex !important; flex:1 1 auto; flex-direction:column; align-items:flex-start;
+  justify-content:center; padding:0 !important; border:none !important; background:none !important}
+.empty-card{width:min(40%, 500px); max-width:500px; margin-right:auto; min-height:440px;
+  display:flex; flex-direction:column; justify-content:center; gap:12px;
+  padding:30px 34px; border-radius:16px; text-align:left;
+  background:rgba(255,255,255,.035);
+  border:1.6px dashed rgba(255,255,255,.55);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+  animation:goldslide .7s cubic-bezier(.22,1,.36,1) both}
+@media (max-width:900px){ .empty-card{width:100%; min-height:0} }
+#emptyState h2{margin:0}
+#emptyState p{margin:0}
+
+/* nudge the dashed rectangle further left */
+.empty-card{transform:translate(22px,-40px)}
+@media (max-width:900px){ .empty-card{transform:none} }
+
+/* ── empty state → highlighted, animated, medical-themed upload panel ── */
+.empty-card{position:relative; overflow:hidden; cursor:pointer;
+  border-color:rgba(232,163,32,.55);
+  transition:transform .3s cubic-bezier(.22,1,.36,1), border-color .3s, box-shadow .3s;
+  animation:goldslide .7s cubic-bezier(.22,1,.36,1) both, cardpulse 3.4s ease-in-out 1s infinite}
+.empty-card::before{content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+  opacity:.16; mix-blend-mode:screen;
+  background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='120'%20height='40'%20viewBox='0%200%20120%2040'%3E%3Cpath%20d='M0%2020%20H30%20L34%2015%20L38%2020%20L42%205%20L47%2035%20L52%2020%20H120'%20fill='none'%20stroke='%23e8a320'%20stroke-width='1.4'/%3E%3C/svg%3E");
+  background-repeat:repeat; background-size:120px 40px; animation:ecgscroll 5s linear infinite}
+.empty-card > *{position:relative; z-index:1}
+.empty-card:hover{transform:translate(22px,-46px); border-color:rgba(232,163,32,.85)}
+.empty-card:hover::before{opacity:.24}
+.empty-card.dragover{border-style:solid; border-color:#e8a320; transform:translate(22px,-46px)}
+.empty-card.dragover::before{opacity:.32}
+.up-ic{width:52px; height:52px; border-radius:14px; display:flex; align-items:center; justify-content:center;
+  color:#1c1305; background:linear-gradient(135deg,#e8c979,#c79a4e); border:1px solid rgba(232,163,32,.6);
+  box-shadow:0 8px 22px -10px rgba(232,163,32,.8), inset 0 1px 0 rgba(255,255,255,.4);
+  animation:iconbob 2.6s ease-in-out infinite}
+.up-ic svg{width:26px; height:26px}
+.up-hint{margin-top:2px; font-size:11.5px; font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase; color:#e8a320}
+@keyframes ecgscroll{to{background-position:-120px 0}}
+@keyframes cardpulse{0%,100%{box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 0 0 0 rgba(232,163,32,0)}
+  50%{box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 0 32px -6px rgba(232,163,32,.5)}}
+@keyframes iconbob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@media (prefers-reduced-motion:reduce){.empty-card,.empty-card::before,.up-ic{animation:none}}
+
+/* ── static neon upload panel: no moving background, centered neon icon ── */
+.empty-card{animation:goldslide .7s cubic-bezier(.22,1,.36,1) both;
+  border-color:rgba(232,163,32,.85);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),
+    0 0 18px -2px rgba(232,163,32,.55),
+    0 0 44px -6px rgba(6,182,212,.38)}
+.empty-card::before{animation:none; mix-blend-mode:normal; opacity:1;
+  background:radial-gradient(120% 90% at 12% 0%, rgba(232,163,32,.12), transparent 55%),
+             radial-gradient(120% 95% at 100% 100%, rgba(6,182,212,.12), transparent 55%);
+  background-repeat:no-repeat}
+.empty-card:hover{border-color:#e8a320;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),
+    0 0 26px -2px rgba(232,163,32,.7),
+    0 0 60px -6px rgba(6,182,212,.5)}
+.empty-card.dragover{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),
+    0 0 30px -2px rgba(232,163,32,.85), 0 0 70px -6px rgba(6,182,212,.6)}
+.up-ic{align-self:center; animation:none;
+  box-shadow:0 0 20px -2px rgba(232,163,32,.9), 0 8px 22px -10px rgba(232,163,32,.8),
+    inset 0 1px 0 rgba(255,255,255,.5)}
+#emptyState h2{text-shadow:0 0 20px rgba(232,163,32,.4)}
+.up-hint{text-shadow:0 0 12px rgba(232,163,32,.55)}
+
+/* ── frosty gold background (frosted glass, gold tint) ── */
+.empty-card{background:linear-gradient(150deg, rgba(232,163,32,.18), rgba(214,184,150,.06));
+  -webkit-backdrop-filter:blur(16px) saturate(1.25);
+  backdrop-filter:blur(16px) saturate(1.25)}
+.empty-card::before{background:radial-gradient(120% 90% at 15% 0%, rgba(255,214,140,.20), transparent 55%),
+             radial-gradient(120% 95% at 100% 100%, rgba(232,163,32,.10), transparent 60%)}
+
+/* fix: goldslide's `transform:none` end-state was overriding the card's position
+   offset. Use an opacity-only entrance so translate(22px,-40px) actually holds. */
+.empty-card{animation:cardin .6s ease both}
+@keyframes cardin{from{opacity:0}to{opacity:1}}
+
+/* ensure the upload box actually hides on Analyze (beats .empty display:flex !important) */
+#emptyState.hidden{display:none !important}
+
+
+/* spread the upload-card content to fill the box height + let the text run wider */
+.empty-card{ justify-content:space-evenly !important; gap:14px !important; }
+#emptyState .empty-card p{ max-width:none !important; }
+
+/* eeg.png as the upload-card icon (inside the gold badge) */
+.up-ic img{ width:36px; height:36px; object-fit:contain; display:block; }
+
+/* lower-contrast icon badge so eeg.png reads clearly (was a bright gold gradient) */
+.up-ic{ background:rgba(232,165,72,.16) !important; border:1px solid rgba(232,163,32,.28) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.15) !important; }
+
+/* fully transparent icon badge, no frame */
+.up-ic{ background:none !important; border:none !important; box-shadow:none !important; }
+
+/* slightly larger eeg.png icon */
+.up-ic{ width:auto !important; height:auto !important; }
+.up-ic img{ width:52px !important; height:52px !important; }
+
+/* eeg.png icon -> 45px */
+.up-ic img{ width:45px !important; height:45px !important; }
+
+/* report: a keyword-bolded word inside a section title (e.g. "Recommendation")
+   must keep the gold title colour, not the white strong colour */
+.report-body h4 strong{ color:inherit; }
