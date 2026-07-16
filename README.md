@@ -5,7 +5,7 @@ seizure activity with a convolutional neural network, turns per-window predictio
 into a recording-level epilepsy-risk assessment, and drafts a clinical report with a
 local language model — all on your own machine, with no patient data leaving it.
 
-📹 **Demo video:** https://drive.google.com/file/d/1HfcdeVhxI6KtM6jSEWdZPCVmv_zjM3WJ/view?usp=sharing
+📹 **Demo video:** https://drive.google.com/file/d/11zgckpcWk4Vsc9Sf-ix3OLxdcKytCCVt/view?usp=sharing
 
 > **Not a medical device.** This is a research / decision-support prototype, not a
 > diagnostic tool. Every finding requires review by a qualified neurologist.
