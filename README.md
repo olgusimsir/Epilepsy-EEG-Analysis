@@ -25,6 +25,12 @@ Upload a scalp-EEG recording (`.edf`) → the tool:
 
 Served as a web app (`serve_ui.py`) at `http://localhost:8000`.
 
+> **Note:** The chart below is not a raw EEG waveform. NeuroScan displays the
+> model's seizure-probability output over time — not the patient's actual EEG
+> signal. The comparison below illustrates the difference.
+
+![EEG vs probability output](design/comparison.png)
+
 ## The two "AIs" in this project
 
 | Component | Role | Where |
